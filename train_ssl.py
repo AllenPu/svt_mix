@@ -39,6 +39,7 @@ from datasets.rand_conv import RandConv
 from models import get_vit_base_patch16_224, get_aux_token_vit, SwinTransformer3D, S3D
 from utils.parser import load_config
 from eval_knn import extract_features, knn_classifier, UCFReturnIndexDataset, HMDBReturnIndexDataset
+from utils.mixup import data_mixup
 
 torchvision_archs = sorted(name for name in torchvision_models.__dict__
                            if name.islower() and not name.startswith("__")
@@ -504,6 +505,15 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 teacher_output = teacher(images[:2])  # only 2 global views through the teacher
                 loss = dino_loss(student_output, teacher_output, epoch)
             else:
+                #
+                # # here we implement the mixup over a batch of x
+                #  
+                # first check the list of the x in a batch
+                assert len(x) == 10
+                
+
+
+
                 student_output = student(images)
                 if rand_conv is not None:
                     teacher_output = teacher([images[0], rand_conv(images[1])])
