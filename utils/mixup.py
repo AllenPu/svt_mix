@@ -48,7 +48,7 @@ def data_mixup(x, lam):
         yl, yh, xl, xh = rand_bbox(x_image.shape, new_lams[i].cpu())
         bbox_area = (yh - yl) * (xh - xl)
         new_lams[i] = torch.tensor(1. - bbox_area / float(x_image.shape[-2] * x_image.shape[-1])).cuda()
-        # mix up for two videos frame by frame
+        # mix up for two videos frame by frame, at the same temproal position
         for j in range(temporal_len):
             x[i:i+1, :, j, yl:yh, xl:xh] = F.interpolate(x_flip[i:i+1, :, j, :, :], (yh - yl, xh - xl), mode="bilinear")
     # mixuped x, original ratio (first derievd from the beta distribution), new ratio after mixed up
