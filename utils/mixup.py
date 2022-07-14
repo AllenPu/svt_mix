@@ -44,6 +44,7 @@ def data_mixup(x, lam):
     for i in range(x.shape[0]):
         # two video mixup in a temproal level       
         x_image = x[:, :, 0, :, :]
+        assert len(x_image.shape) == 4
         yl, yh, xl, xh = rand_bbox(x_image.shape, new_lams[i].cpu())
         bbox_area = (yh - yl) * (xh - xl)
         new_lams[i] = torch.tensor(1. - bbox_area / float(x_image.shape[-2] * x_image.shape[-1])).cuda()
