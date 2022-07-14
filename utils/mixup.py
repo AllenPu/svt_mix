@@ -27,7 +27,7 @@ def rand_bbox(img_shape, lam, margin=0., count=None):
     return yl, yh, xl, xh
 
 
-def datamixing(x, lam):
+def data_mixup(x, lam):
     #
     # x in shape of : [B, C, T, H, W]
     # lam is the mixup ratio
