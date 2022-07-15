@@ -527,16 +527,19 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 images_student = [torch.cat([x1, x2], dim = 0)]
                 images_teacher = [torch.cat([global1, global1_flip], dim=0)]
 
-                ###student_output = student(images)
-                student_output = student(images_student)
-                teacher_output = teacher(images_teacher)
+                student_output = student(images[2:])
+                teacher_output = teacher(images[:2])
+                # mixed output
+                student_output_mix = student(images_student)
+                teacher_output_mix = teacher(images_teacher)
                 ###if rand_conv is not None:
                 ###    teacher_output = teacher([images[0], rand_conv(images[1])])
                 ###else:
                 ###    teacher_output = teacher(images[:2])  # only the 2 global views pass through the teacher
                 ###loss = dino_loss(student_output, teacher_output, epoch)
-                loss = dino_loss(student_output[:bsz], teacher_output[:bsz], epoch) \
-                                + dino_loss(student_output[bsz:], teacher_output[bsz:], epoch)
+                loss = dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
+                                + dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch) \
+                                + dino_loss(student_output, teacher_output, epoch)
 
         if not math.isfinite(loss.item()):
             print("Loss is {}, stopping training".format(loss.item()), force=True)
