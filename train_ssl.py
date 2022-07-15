@@ -354,12 +354,13 @@ def train_svt(args):
     # ============ preparing loss ... ============
     dino_loss = DINOLoss(
         args.out_dim,
-        args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
+        #args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
+        1, # ncrops
         args.warmup_teacher_temp,
         args.teacher_temp,
         args.warmup_teacher_temp_epochs,
         args.epochs,
-        global_crops=2,
+        global_crops=1,
         two_token=config.MODEL.TWO_TOKEN
     ).cuda()
 
@@ -670,9 +671,9 @@ class DINOLoss(nn.Module):
 
             for iq, q in enumerate(teacher_out):
                 for v in range(len(student_out)):
-                    if v == iq:
+                    #if v == iq:
                         # we skip cases where student and teacher operate on the same view
-                        continue
+                    #    continue
                     loss = torch.sum(-q * F.log_softmax(student_out[v], dim=-1), dim=-1)
                     total_loss += loss.mean()
                     n_loss_terms += 1
