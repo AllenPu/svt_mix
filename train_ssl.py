@@ -508,18 +508,34 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 #
                 # # here we implement the mixup over a batch of x
                 #  
-                # first check the list of the x in a batch
+                # first check the list of the x [] in a batch
                 assert len(x) == 10
-                
+                #
+                # the first global crop image
+                global1 = images[0]
+                # we want to mix global 1 and global 2
+                # mix in global1 only
+                # assume we have the B in B1+B2
+                # X1 : B1 <- B2
+                # X2 : B1 -> B2
+                bsz = images[0].shape[0]
+                x1, lam1, new_lams1 = data_mixup(global1, None)
+                global1_flip = x1.flip(0).clone()
+                x2, lam2, new_lams2 = data_mixup(global1_flip, lam1)
+                # bsz + bsz <- length
+                images_student = [torch.cat([x1, x2], dim = 0)]
+                images_teacher = [torch.cat([global1, global1_flip], dim=0)]
 
-
-
-                student_output = student(images)
-                if rand_conv is not None:
-                    teacher_output = teacher([images[0], rand_conv(images[1])])
-                else:
-                    teacher_output = teacher(images[:2])  # only the 2 global views pass through the teacher
-                loss = dino_loss(student_output, teacher_output, epoch)
+                ###student_output = student(images)
+                student_output = student(images_student)
+                teacher_output = teacher(images_teacher)
+                ###if rand_conv is not None:
+                ###    teacher_output = teacher([images[0], rand_conv(images[1])])
+                ###else:
+                ###    teacher_output = teacher(images[:2])  # only the 2 global views pass through the teacher
+                ###loss = dino_loss(student_output, teacher_output, epoch)
+                loss = dino_loss(student_output[:bsz], teacher_output[:bsz], epoch) \
+                                + dino_loss(student_output[bsz:], teacher_output[bsz:], epoch)
 
         if not math.isfinite(loss.item()):
             print("Loss is {}, stopping training".format(loss.item()), force=True)
