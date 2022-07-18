@@ -22,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from datasets.ucf101 import UCF101
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -163,7 +164,8 @@ def train_svt(args):
         json.dump(vars(args), open(Path(args.output_dir) / "config.txt", "w"), indent=4)
     config.DATA.PATH_TO_DATA_DIR = args.data_path
     # config.DATA.PATH_PREFIX = os.path.dirname(args.data_path)
-    dataset = Kinetics(cfg=config, mode="train", num_retries=10, get_flow=config.DATA.USE_FLOW)
+    # dataset = Kinetics(cfg=config, mode="train", num_retries=10, get_flow=config.DATA.USE_FLOW)
+    dataset = UCF101(cfg=config, mode="train", num_retries=10, get_flow=config.DATA.USE_FLOW)
     sampler = torch.utils.data.DistributedSampler(dataset, shuffle=True)
     data_loader = torch.utils.data.DataLoader(
         dataset,
