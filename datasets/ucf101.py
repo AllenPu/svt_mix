@@ -95,24 +95,26 @@ class UCF101(torch.utils.data.Dataset):
         self._path_to_videos = []
         self._labels = []
         self._spatial_temporal_idx = []
-        with open(path_to_file, "r") as f:
-            for clip_idx, path_label in enumerate(f.read().splitlines()):
-                assert (
-                        len(path_label.split(self.cfg.DATA.PATH_LABEL_SEPARATOR))
-                        == 2
-                )
-                path, label = path_label.split(
-                    self.cfg.DATA.PATH_LABEL_SEPARATOR
-                )
-                for idx in range(self._num_clips):
-                    self._path_to_videos.append(
-                        os.path.join(self.cfg.DATA.PATH_PREFIX, path)
+
+        for path_to_file in path_to_file_list:
+            with open(path_to_file, "r") as f:
+                for clip_idx, path_label in enumerate(f.read().splitlines()):
+                    assert (
+                            len(path_label.split(self.cfg.DATA.PATH_LABEL_SEPARATOR))
+                            == 2
                     )
-                    self._labels.append(int(label))
-                    self._spatial_temporal_idx.append(idx)
-                    self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert (len(self._path_to_videos) > 0), f"Failed to load UCF101 split {self._split_idx} from {path_to_file}"
-        print(f"Constructing UCF101 dataloader (size: {len(self._path_to_videos)}) from {path_to_file}")
+                    path, label = path_label.split(
+                        self.cfg.DATA.PATH_LABEL_SEPARATOR
+                    )
+                    for idx in range(self._num_clips):
+                        self._path_to_videos.append(
+                            os.path.join(self.cfg.DATA.PATH_PREFIX, path)
+                        )
+                        self._labels.append(int(label))
+                        self._spatial_temporal_idx.append(idx)
+                        self._video_meta[clip_idx * self._num_clips + idx] = {}
+            assert (len(self._path_to_videos) > 0), f"Failed to load UCF101 split {self._split_idx} from {path_to_file}"
+            print(f"Constructing UCF101 dataloader (size: {len(self._path_to_videos)}) from {path_to_file}")
 
     def __getitem__(self, index):
         """
