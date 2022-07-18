@@ -66,12 +66,31 @@ class UCF101(torch.utils.data.Dataset):
         """
         Construct the video loader.
         """
+        '''
         path_to_file = os.path.join(
             self.cfg.DATA.PATH_TO_DATA_DIR, "ucf101_{}_split_1_videos.txt".format(self.mode)
         )
-        assert os.path.exists(path_to_file), "{} dir not found".format(
-            path_to_file
-        )
+        '''
+        ###
+        # new added for ucf 101 
+        ###
+        path_to_file_list = []       
+        path_to_file1 = os.path.join(
+                self.cfg.DATA.PATH_TO_DATA_DIR, "{}list01.txt".format(self.mode)
+            )
+        path_to_file2 = os.path.join(
+                self.cfg.DATA.PATH_TO_DATA_DIR, "{}list02.txt".format(self.mode)
+            )
+        path_to_file3 = os.path.join(
+                self.cfg.DATA.PATH_TO_DATA_DIR, "{}list03.txt".format(self.mode)
+            )
+        path_to_file_list = [path_to_file1, path_to_file2, path_to_file3]
+        
+        # check if the file exists
+        for path_to_file in path_to_file_list:
+            assert os.path.exists(path_to_file), "{} dir not found".format(
+                path_to_file
+            )
 
         self._path_to_videos = []
         self._labels = []
