@@ -512,7 +512,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 # # here we implement the mixup over a batch of x
                 #  
                 # first check the list of the x [] in a batch
-                assert len(x) == 10
+                #assert len(x) == 10
                 #
                 # the first global crop image
                 global1 = images[0]
