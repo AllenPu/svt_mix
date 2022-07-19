@@ -643,6 +643,9 @@ class DINOLoss(nn.Module):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
+        if reset:
+          self.n_crops = n_crops
+          self.global_crops = global_crops
         total_loss = 0
         n_loss_terms = 0
         if self.two_token:
