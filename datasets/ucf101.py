@@ -261,7 +261,6 @@ class UCF101(torch.utils.data.Dataset):
                     random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
                     inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
                 )
-                frames = [frames]
                 # if not self.cfg.MODEL.ARCH in ['vit']:
                 #     frames = pack_pathway_output(self.cfg, frames)
                 # else:
