@@ -116,6 +116,8 @@ class UCF101(torch.utils.data.Dataset):
             assert (len(self._path_to_videos) > 0), f"Failed to load UCF101 split {self._split_idx} from {path_to_file}"
             print(f"Constructing UCF101 dataloader (size: {len(self._path_to_videos)}) from {path_to_file}")
 
+
+
     def __getitem__(self, index):
         """
         Given the video index, return the list of frames, label, and video
@@ -223,6 +225,7 @@ class UCF101(torch.utils.data.Dataset):
                 target_fps=self.cfg.DATA.TARGET_FPS,
                 backend=self.cfg.DATA.DECODING_BACKEND,
                 max_spatial_scale=min_scale,
+                temporal_aug=self.mode == "train",
             )
 
             # If decoding failed (wrong format, video is too short, and etc),
@@ -240,35 +243,59 @@ class UCF101(torch.utils.data.Dataset):
 
             label = self._labels[index]
 
-            # Perform color normalization.
-            frames = tensor_normalize(
-                frames, self.cfg.DATA.MEAN, self.cfg.DATA.STD
-            )
-            frames = frames.permute(3, 0, 1, 2)
 
-            # Perform data augmentation.
-            frames = spatial_sampling(
-                frames,
-                spatial_idx=spatial_sample_index,
-                min_scale=min_scale,
-                max_scale=max_scale,
-                crop_size=crop_size,
-                random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
-                inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
-            )
+            if self.mode in ["test", "val"]:
+                # Perform color normalization.
+                frames = tensor_normalize(
+                    frames, self.cfg.DATA.MEAN, self.cfg.DATA.STD
+                )
+                frames = frames.permute(3, 0, 1, 2)
 
-            # if not self.cfg.MODEL.ARCH in ['vit']:
-            #     frames = pack_pathway_output(self.cfg, frames)
-            # else:
-            # Perform temporal sampling from the fast pathway.
-            # frames = [torch.index_select(
-            #     x,
-            #     1,
-            #     torch.linspace(
-            #         0, x.shape[1] - 1, self.cfg.DATA.NUM_FRAMES
-            #     ).long(),
-            # ) for x in frames]
+                # Perform data augmentation.
+                frames = spatial_sampling(
+                    frames,
+                    spatial_idx=spatial_sample_index,
+                    min_scale=min_scale,
+                    max_scale=max_scale,
+                    crop_size=crop_size,
+                    random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
+                    inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
+                )
+                frames = [frames]
+                # if not self.cfg.MODEL.ARCH in ['vit']:
+                #     frames = pack_pathway_output(self.cfg, frames)
+                # else:
+                # Perform temporal sampling from the fast pathway.
+                # frames = [torch.index_select(
+                #     x,
+                #     1,
+                #     torch.linspace(
+                #         0, x.shape[1] - 1, self.cfg.DATA.NUM_FRAMES
+                #     ).long(),
+                # ) for x in frames]
+                # here the frame is at c,t,h,w
+                # we need to shape to t,c,h,w
+            else: # train
+                # T H W C -> T C H W
+                frames = [x.permute(0,3,1,2) for x in frames]
+                # video aug
+                augmentation = VideoDataAugmentationDINO()
+                # implment
+                frames = augmentation(frames, from_list=True, no_aug=self.cfg.DATA.NO_SPATIAL,
+                                      two_token=self.cfg.MODEL.TWO_TOKEN)
+                # T C H W -> C T H W
+                frames = [x.permute(1,0,2,3) for x in frames]
+                # temproal sampling
+                frames = [torch.index_select(
+                    x,
+                    1,
+                    torch.linspace(
+                        0, x.shape[1] - 1, x.shape[1] if self.cfg.DATA.RAND_FR else self.cfg.DATA.NUM_FRAMES
 
+                    ).long(),
+                ) for x in frames]
+            
+            # train would return a list of len 8 while test would return a list of len 1
             return frames, label, index, {}
         else:
             raise RuntimeError(
