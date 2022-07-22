@@ -12,6 +12,7 @@ from datasets.transform import VideoDataAugmentationDINO
 from einops import rearrange
 from decord import VideoReader
 from torchvision import transforms
+from datasets.decoder import temporal_sampling
 
 
 class HMDB51(torch.utils.data.Dataset):
@@ -228,6 +229,20 @@ class HMDB51(torch.utils.data.Dataset):
                 buffer = buffer.permute(0, 2, 3, 1)
                 #
                 frames = buffer.clone()
+                #
+                start_index = 0
+                end_index = frames.shape[0] - 1
+                #
+                index = torch.linspace( \
+                    start_index, end_index, self.cfg.DATA.NUM_FRAMES)
+                #
+                index = torch.clamp(index, 0, frames.shape[0]-1).long()
+                #
+                # temporal sampling
+                #
+                frames = torch.index_select(frames, 0, index)
+                #
+                print(" this video has been successfully extracted")
 
 
             # If decoding failed (wrong format, video is too short, and etc),
