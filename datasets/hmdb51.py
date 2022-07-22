@@ -10,6 +10,8 @@ from datasets.decoder import decode
 from datasets.video_container import get_video_container
 from datasets.transform import VideoDataAugmentationDINO
 from einops import rearrange
+from decord import VideoReader
+from torchvision import transforms
 
 
 class HMDB51(torch.utils.data.Dataset):
@@ -192,17 +194,41 @@ class HMDB51(torch.utils.data.Dataset):
                 continue
 
             # Decode video. Meta info is used to perform selective decoding.
-            frames = decode(
-                container=video_container,
-                sampling_rate=sampling_rate,
-                num_frames=self.cfg.DATA.NUM_FRAMES,
-                clip_idx=temporal_sample_index,
-                num_clips=self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
-                video_meta=self._video_meta[index],
-                target_fps=self.cfg.DATA.TARGET_FPS,
-                backend=self.cfg.DATA.DECODING_BACKEND,
-                max_spatial_scale=min_scale,
-            )
+            if i < 2 and video_container is None:
+                frames = decode(
+                    container=video_container,
+                    sampling_rate=sampling_rate,
+                    num_frames=self.cfg.DATA.NUM_FRAMES,
+                    clip_idx=temporal_sample_index,
+                    num_clips=self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
+                    video_meta=self._video_meta[index],
+                    target_fps=self.cfg.DATA.TARGET_FPS,
+                    backend=self.cfg.DATA.DECODING_BACKEND,
+                    max_spatial_scale=min_scale,
+                )
+            else:
+                # use decord to load videos
+                vr = VideoReader(self._path_to_videos[index])
+                all_index = [x for x in range(0, len(vr), sampling_rate)]
+                while all_index < self.cfg.DATA.NUM_FRAMES:
+                    all_index.append(all_index[-1])
+                vr.seek(0)
+                # should be len(vr).sample_rate frames
+                # buffer shape is T,H,W,3
+                buffer = vr.get_batch(all_index).asnumpy()
+                #
+                buffer = [
+                    transforms.ToPILImage()(frame) for frame in buffer
+                ]
+                #
+                buffer = [transforms.ToTensor()(img) for img in buffer]
+                #
+                buffer = torch.stack(buffer)
+                #
+                buffer = buffer.permute(0, 2, 3, 1)
+                #
+                frames = buffer.clone()
+
 
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
