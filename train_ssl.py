@@ -516,7 +516,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 #
                 # the first global crop image
                 global1 = images[0]
-                # we want to mix global 1 and global 2
+                # we want to mix global 1
                 # mix in global1 only
                 # assume we have the B in B1+B2
                 # X1 : B1 <- B2
@@ -543,7 +543,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 ###loss = dino_loss(student_output, teacher_output, epoch)
                 loss = dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
                                 + dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch) \
-                                + dino_loss(student_output, teacher_output, epoch)
+                                + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True)
 
         if not math.isfinite(loss.item()):
             print("Loss is {}, stopping training".format(loss.item()), force=True)
