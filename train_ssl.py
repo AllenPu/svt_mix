@@ -543,7 +543,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 ###loss = dino_loss(student_output, teacher_output, epoch)
                 loss = dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
                                 + dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch) \
-                                + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True)
+                                + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True, update_center=True)
 
         if not math.isfinite(loss.item()):
             print("Loss is {}, stopping training".format(loss.item()), force=True)
@@ -641,7 +641,7 @@ class DINOLoss(nn.Module):
             np.ones(nepochs - warmup_teacher_temp_epochs) * teacher_temp
         ))
 
-    def forward(self, student_output, teacher_output, epoch, n_crops=1, global_crops=1, reset=False):
+    def forward(self, student_output, teacher_output, epoch, n_crops=1, global_crops=1, reset=False, update_center=False):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
@@ -688,7 +688,8 @@ class DINOLoss(nn.Module):
                     total_loss += loss.mean()
                     n_loss_terms += 1
         total_loss /= n_loss_terms
-        self.update_center(teacher_output)
+        if update_center:
+            self.update_center(teacher_output)
         return total_loss
 
     @torch.no_grad()
