@@ -145,11 +145,43 @@ def eval_linear(args):
     start_epoch = to_restore["epoch"]
     best_acc = to_restore["best_acc"]
 
+    ######
+    # set up the optimizer
+    ######
+    full_model = None
+    #
+    optimizer_full_model = None
+    #
+    if not args.linear_probe:
+        #
+        full_model = nn.Sequential(
+            model,
+            linear_classifier
+            )
+        optimizer_full_model = torch.optim.SGD(
+            full_model.parameters(),
+            args.lr * (args.batch_size_per_gpu * utils.get_world_size()) / 256., # linear scaling rule
+            momentum=0.9,
+            weight_decay=0, # we do not apply weight decay
+        )
+        #
+        scheduler_full_model = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_full_model, args.epochs, eta_min=0)
+
     for epoch in range(start_epoch, args.epochs):
         train_loader.sampler.set_epoch(epoch)
 
-        train_stats = train(model, linear_classifier, optimizer, train_loader, epoch, args.n_last_blocks, args.avgpool_patchtokens)
-        scheduler.step()
+        train_stats = train(model, linear_classifier, optimizer, train_loader, epoch, \
+                                args.n_last_blocks, args.avgpool_patchtokens, full_model, optimizer_full_model, linear_probe = args.linear_probe)
+        
+        ###
+        # add ;inear probe version
+        ###
+        if args.linear_probe:
+            scheduler.step()
+        else:
+            scheduler_full_model.step()
+            model = full_model[0]
+            linear_classifier = full_model[1]
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      'epoch': epoch}
@@ -163,11 +195,23 @@ def eval_linear(args):
         if utils.is_main_process():
             with (Path(args.output_dir) / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
+            # choose which to save
+            #   1) linear porbe
+            #   2) whole model
+            if args.linear_probe:
+                opt = optimizer
+                sch = scheduler
+                mo = linear_classifier
+            else:
+                opt = optimizer_full_model
+                sch = scheduler_full_model
+                mo = full_model
+            # save 
             save_dict = {
                 "epoch": epoch + 1,
-                "state_dict": linear_classifier.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "scheduler": scheduler.state_dict(),
+                "state_dict": mo.state_dict(),
+                "optimizer": opt.state_dict(),
+                "scheduler": sch.state_dict(),
                 "best_acc": best_acc,
             }
             torch.save(save_dict, os.path.join(args.output_dir, "checkpoint.pth.tar"))
@@ -180,7 +224,7 @@ def eval_linear(args):
           "Top-1 test accuracy: {acc:.1f}".format(acc=best_acc))
 
 
-def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool):
+def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool, full_model=None, optimizer_full_model = None, linear_probe = True):
     linear_classifier.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -191,31 +235,48 @@ def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool):
         target = target.cuda(non_blocking=True)
 
         # forward
-        with torch.no_grad():
+        ####
+        # fine tune without linear probe
+        ###
+        if not linear_probe and optimizer_full_model != None and full_model != None:
+            #
+            output = full_model(inp)
+            # compute cross entropy loss
+            loss = nn.CrossEntropyLoss()(output, target)
+            # gradient
+            optimizer_full_model.zero_grad()
+            #
+            loss.backward()
+            # step
+            optimizer_full_model.step()
+            # log
+            torch.cuda.synchronize()
+            metric_logger.update(loss=loss.item())
+            metric_logger.update(lr=optimizer_full_model.param_groups[0]["lr"])
+        ####
+        # fine tune with linear probe
+        ####
+        else:
+            with torch.no_grad():
             # intermediate_output = model.get_intermediate_layers(inp, n)
             # output = [x[:, 0] for x in intermediate_output]
             # if avgpool:
             #     output.append(torch.mean(intermediate_output[-1][:, 1:], dim=1))
             # output = torch.cat(output, dim=-1)
+                output = model(inp)
+            output = linear_classifier(output)
+            # compute cross entropy loss
+            loss = nn.CrossEntropyLoss()(output, target)
+            # compute the gradients
+            optimizer.zero_grad()
+            loss.backward()
+            # step
+            optimizer.step()
 
-            output = model(inp)
-
-        output = linear_classifier(output)
-
-        # compute cross entropy loss
-        loss = nn.CrossEntropyLoss()(output, target)
-
-        # compute the gradients
-        optimizer.zero_grad()
-        loss.backward()
-
-        # step
-        optimizer.step()
-
-        # log
-        torch.cuda.synchronize()
-        metric_logger.update(loss=loss.item())
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+            # log
+            torch.cuda.synchronize()
+            metric_logger.update(loss=loss.item())
+            metric_logger.update(lr=optimizer.param_groups[0]["lr"])
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -356,6 +417,10 @@ if __name__ == '__main__':
     parser.add_argument("--cfg", dest="cfg_file", help="Path to the config file", type=str,
                         default="models/configs/Kinetics/TimeSformer_divST_8x32_224.yaml")
     parser.add_argument("--opts", help="See utils/defaults.py for all options", default=None, nargs=argparse.REMAINDER)
+    #
+    #
+    #
+    parser.add_argument('--linear_probe', default=True, type=utils.bool_flag, help="Fine tune over the  pretrained checkpoint")
 
     args = parser.parse_args()
     eval_linear(args)
