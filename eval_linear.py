@@ -186,7 +186,7 @@ def eval_linear(args):
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      'epoch': epoch}
         if epoch % args.val_freq == 0 or epoch == args.epochs - 1:
-            test_stats = validate_network(val_loader, model, linear_classifier, args.n_last_blocks, args.avgpool_patchtokens)
+            test_stats = validate_network(val_loader, model, linear_classifier, args.n_last_blocks, args.avgpool_patchtokens, linear_probe=args.linear_probe)
             print(f"Accuracy at epoch {epoch} of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
             best_acc = max(best_acc, test_stats["acc1"])
             print(f'Max accuracy so far: {best_acc:.2f}%')
@@ -217,7 +217,7 @@ def eval_linear(args):
             torch.save(save_dict, os.path.join(args.output_dir, "checkpoint.pth.tar"))
 
     test_stats = validate_network_multi_view(multi_crop_val_loader, model, linear_classifier, args.n_last_blocks,
-                                             args.avgpool_patchtokens, config)
+                                             args.avgpool_patchtokens, config, linear_probe=args.linear_probe)
     print(test_stats)
 
     print("Training of the supervised linear classifier on frozen features completed.\n"
@@ -225,7 +225,10 @@ def eval_linear(args):
 
 
 def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool, full_model=None, optimizer_full_model = None, linear_probe = True):
-    linear_classifier.train()
+    if not linear_probe:
+        full_model.train()
+    else:
+        linear_classifier.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
@@ -284,8 +287,12 @@ def train(model, linear_classifier, optimizer, loader, epoch, n, avgpool, full_m
 
 
 @torch.no_grad()
-def validate_network(val_loader, model, linear_classifier, n, avgpool):
-    linear_classifier.eval()
+def validate_network(val_loader, model, linear_classifier, n, avgpool, linear_probe = True):
+    if linear_probe:
+        linear_classifier.eval()
+    else:
+        model.eval()
+        linear_classifier.eval()
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
     for (inp, target, sample_idx, meta) in metric_logger.log_every(val_loader, 20, header):
@@ -324,8 +331,12 @@ def validate_network(val_loader, model, linear_classifier, n, avgpool):
 
 
 @torch.no_grad()
-def validate_network_multi_view(val_loader, model, linear_classifier, n, avgpool, cfg):
-    linear_classifier.eval()
+def validate_network_multi_view(val_loader, model, linear_classifier, n, avgpool, cfg, linear_probe):
+    if linear_probe:
+        linear_classifier.eval()
+    else:
+        model.eval()
+        linear_classifier.eval()
     test_meter = TestMeter(
         len(val_loader.dataset)
         // (cfg.TEST.NUM_ENSEMBLE_VIEWS * cfg.TEST.NUM_SPATIAL_CROPS),
