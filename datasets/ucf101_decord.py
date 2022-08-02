@@ -8,6 +8,9 @@ from torchvision import transforms
 import warnings
 from decord import VideoReader, cpu
 from torch.utils.data import Dataset
+from datasets.data_utils import get_random_sampling_rate, tensor_normalize, spatial_sampling, pack_pathway_output
+import random
+from datasets.transform import VideoDataAugmentationDINO
 
 class UCF101(torch.utils.data.Dataset):
     """
@@ -129,14 +132,205 @@ class UCF101(torch.utils.data.Dataset):
                 decoded, then return the index of the video. If not, return the
                 index of the video replacement that can be decoded.
         """
-        #short_cycle_idx = None
+        short_cycle_idx = None
         # When short cycle is used, input index is a tupple.
-        fname = self._path_to_videos[index]
+        if isinstance(index, tuple):
+            index, short_cycle_idx = index
+
+        if self.mode in ["train"]:
+            # -1 indicates random sampling.
+            temporal_sample_index = -1
+            spatial_sample_index = -1
+            min_scale = self.cfg.DATA.TRAIN_JITTER_SCALES[0]
+            max_scale = self.cfg.DATA.TRAIN_JITTER_SCALES[1]
+            crop_size = self.cfg.DATA.TRAIN_CROP_SIZE
+            if short_cycle_idx in [0, 1]:
+                crop_size = int(
+                    round(
+                        self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx]
+                        * self.cfg.MULTIGRID.DEFAULT_S
+                    )
+                )
+            if self.cfg.MULTIGRID.DEFAULT_S > 0:
+                # Decreasing the scale is equivalent to using a larger "span"
+                # in a sampling grid.
+                min_scale = int(
+                    round(
+                        float(min_scale)
+                        * crop_size
+                        / self.cfg.MULTIGRID.DEFAULT_S
+                    )
+                )
+        elif self.mode in ["val", "test"]:
+            temporal_sample_index = (self._spatial_temporal_idx[index] // self.cfg.TEST.NUM_SPATIAL_CROPS)
+            # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
+            # center, or right if width is larger than height, and top, middle,
+            # or bottom if height is larger than width.
+            spatial_sample_index = (
+                (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS)
+                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1 else 1
+            )
+            min_scale, max_scale, crop_size = (
+                [self.cfg.DATA.TEST_CROP_SIZE] * 3 if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
+                else [self.cfg.DATA.TRAIN_JITTER_SCALES[0]] * 2 + [self.cfg.DATA.TEST_CROP_SIZE]
+            )
+            # The testing is deterministic and no jitter should be performed.
+            # min_scale, max_scale, and crop_size are expect to be the same.
+            assert len({min_scale, max_scale}) == 1
+        else:
+            raise NotImplementedError(
+                "Does not support {} mode".format(self.mode)
+            )
+
+        sampling_rate = get_random_sampling_rate(
+            self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
+            self.cfg.DATA.SAMPLING_RATE,
+        )
+        # Try to decode and sample a clip from a video. If the video can not be
+        # decoded, repeatedly find a random video replacement that can be decoded.
+        # Decode video. Meta info is used to perform selective decoding.
+        #
+        # re-implemente decord frams from videos via decord
         #
         try:
-            vr = VideoReader(fname, num_threads=1, ctx=cpu(0))
+            vr = VideoReader(self._path_to_videos[index], num_threads=1, ctx = cpu(0))
         except:
-            print(" video cannot be loaded by decord : {}".format(fname))
-            return []
+            print("video cannot be loaded by decord: ", self._path_to_videos[index])
+            vr = []
+
+        # check if video can be loaded
+        assert vr != [], print(" video canno tbe loaded")  
         #
+        # we set there are 10 clips per video
+        num_clips = 10 
+        # uniformly sample the frames to the end
+        if self.mode == 'train':
+            frames = []
+            # 2 global views
+            for i in range(2):
+                #clip size which is also the index of first clip
+                clip_size = int(len(vr)/10)
+                # last clip
+                end_clip_index = len(vr) - clip_size
+                #
+                start_idx = random.uniform(0, clip_size)
+                #
+                end_idx = random.uniform(end_clip_index, len(vr))
+                #
+                assert start_idx < end_idx, print("the frame is too small!!!")
+                #
+                index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES).astype(np.int64)
+                #
+                all_index = list(index)
+                #
+                frame = self.convert_to_frame_by_index(vr, all_index)
+                # in the val or test
+                frames.append(frame)
+            # 8 local video clips
+            for j in range(8):
+                clip_size = int(len(vr)/8)
+                # for every clip sample self.cfg.DATA.NUM_FRAMES frames
+                # [j, j + len]
+                start_idx = random.uniform(j*clip_size, j*clip_size + clip_size)
+                # set sperartion [j, j+ len]
+                end_idx = start_idx + clip_size
+                #
+                index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES).astype(np.int64)
+                #
+                index = np.clip(index, 0, len(vr)).astype(np.int64)
+                #
+                all_index = list(index)
+                #
+                frame = self.convert_to_frame_by_index(vr, all_index)
+                # in the val or test
+                frames.append(frame)
+            assert len(frames) == 10, print(" gloabl and local not loaded correctly ! ")
+        else:
+            # load test or val by the index of clip
+            clip_id = temporal_sample_index
+
+
         
+
+
+
+
+
+
+
+
+        label = self._labels[index]
+
+
+        if self.mode in ["test", "val"]:
+            # Perform color normalization.
+            frames = tensor_normalize(
+                frames, self.cfg.DATA.MEAN, self.cfg.DATA.STD
+                )
+            frames = frames.permute(3, 0, 1, 2)
+
+                # Perform data augmentation.
+            frames = spatial_sampling(
+                frames,
+                spatial_idx=spatial_sample_index,
+                min_scale=min_scale,
+                max_scale=max_scale,
+                crop_size=crop_size,
+                random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
+                inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
+            )
+                # if not self.cfg.MODEL.ARCH in ['vit']:
+                #     frames = pack_pathway_output(self.cfg, frames)
+                # else:
+                # Perform temporal sampling from the fast pathway.
+                # frames = [torch.index_select(
+                #     x,
+                #     1,
+                #     torch.linspace(
+                #         0, x.shape[1] - 1, self.cfg.DATA.NUM_FRAMES
+                #     ).long(),
+                # ) for x in frames]
+                # here the frame is at c,t,h,w
+                # we need to shape to t,c,h,w
+        else: # train
+                # T H W C -> T C H W
+            frames = [x.permute(0,3,1,2) for x in frames]
+                # video aug
+            augmentation = VideoDataAugmentationDINO()
+                # implment
+            frames = augmentation(frames, from_list=True, no_aug=self.cfg.DATA.NO_SPATIAL,
+                                      two_token=self.cfg.MODEL.TWO_TOKEN)
+            # T C H W -> C T H W
+            frames = [x.permute(1,0,2,3) for x in frames]
+            # temproal sampling
+            frames = [torch.index_select(
+                    x,
+                    1,
+                    torch.linspace(
+                        0, x.shape[1] - 1, x.shape[1] if self.cfg.DATA.RAND_FR else self.cfg.DATA.NUM_FRAMES
+
+                    ).long(),
+                ) for x in frames]
+            
+            # train would return a list of len 8 while test would return a list of len 1
+        return frames, label, index, {}
+
+
+    def __len__(self):
+        """
+        Returns:
+            (int): the number of videos in the dataset.
+        """
+        return len(self._path_to_videos)
+        #
+
+    def convert_to_frame_by_index(vr, index):
+        vr.seek(0)
+        frame = vr.get_batch(all_index).asnumpy()
+        frame = [transforms.ToPILImage()(frame) for frame in frame]
+        frame = [transforms.ToTensor()(img) for img in frame]
+        frame = torch.stack(frame)
+        # to the shape of T H W C
+        frame = frame.permute(0, 2, 3, 1)
+        # in the val or test
+        return frame
