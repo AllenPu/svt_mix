@@ -248,16 +248,21 @@ class UCF101(torch.utils.data.Dataset):
         else:
             # load test or val by the index of clip
             clip_id = temporal_sample_index
-
-
-        
-
-
-
-
-
-
-
+            #
+            num_clips = 10
+            #
+            clip_size = int(len(vr)/num_clips)
+            #
+            start_idx = random.uniform( clip_id*clip_size, (clip_id+1)*clip_size)
+            end_idx = start_idx + clip_size - 1
+            #
+            index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)
+            #
+            index = np.clip(index, 0, len(vr)).astype(np.int64)
+            #
+            all_index = list(index)
+            #
+            frames = self.convert_to_frame_by_index(vr, all_index)
 
         label = self._labels[index]
 
@@ -324,7 +329,7 @@ class UCF101(torch.utils.data.Dataset):
         return len(self._path_to_videos)
         #
 
-    def convert_to_frame_by_index(vr, index):
+    def convert_to_frame_by_index(vr, all_index):
         vr.seek(0)
         frame = vr.get_batch(all_index).asnumpy()
         frame = [transforms.ToPILImage()(frame) for frame in frame]
