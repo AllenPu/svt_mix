@@ -12,7 +12,7 @@ from datasets.data_utils import get_random_sampling_rate, tensor_normalize, spat
 import random
 from datasets.transform import VideoDataAugmentationDINO
 
-class UCF101(torch.utils.data.Dataset):
+class UCF101_decord(torch.utils.data.Dataset):
     """
     UCF101 video loader. Construct the UCF101 video loader, then sample
     clips from the videos. For training and validation, a single clip is
@@ -77,7 +77,7 @@ class UCF101(torch.utils.data.Dataset):
         path_to_file_list = []
         #
         #
-        for i in range(1,4):       
+        for i in range(1,2):       
             path_to_file = os.path.join(
                     self.cfg.DATA.PATH_TO_DATA_DIR, "{}list0{}.txt".format(self.mode, i)
                 )
@@ -111,7 +111,7 @@ class UCF101(torch.utils.data.Dataset):
                         )
                         self._labels.append(int(label))
                         self._spatial_temporal_idx.append(idx)
-                        self._video_meta[clip_idx * self._num_clips + idx] = {}
+                        #self._video_meta[clip_idx * self._num_clips + idx] = {}
             assert (len(self._path_to_videos) > 0), f"Failed to load UCF101 split {self._split_idx} from {path_to_file}"
             print(f"Constructing UCF101 dataloader (size: {len(self._path_to_videos)}) from {path_to_file}")
 
@@ -339,3 +339,26 @@ class UCF101(torch.utils.data.Dataset):
         frame = frame.permute(0, 2, 3, 1)
         # in the val or test
         return frame
+
+if __name__ == '__main__':
+
+    from utils.parser import parse_args, load_config
+    from tqdm import tqdm
+    config = load_config(args)
+    config.DATA.PATH_TO_DATA_DIR = "/home/shared/UCF/classification_splits"
+    config.DATA.PATH_PREFIX = "/home/shared/UCF/videos"
+    dataset = UCF101(cfg=config, mode="train", num_retries=10)
+    dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=4)
+    print(f"Loaded train dataset of length: {len(dataset)}")
+    for idx, i in enumerate(dataloader):
+        print(idx, i[0].shape, i[1:])
+        if idx > 2:
+            break
+
+    test_dataset = UCF101(cfg=config, mode="val", num_retries=10)
+    test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=4)
+    print(f"Loaded test dataset of length: {len(test_dataset)}")
+    for idx, i in enumerate(test_dataloader):
+        print(idx, i[0].shape, i[1:])
+        if idx > 2:
+            break
