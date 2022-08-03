@@ -345,7 +345,6 @@ if __name__ == '__main__':
     from utils.parser import parse_args, load_config
     from tqdm import tqdm
     args = parse_args()
-    config = load_config(args)
     args.cfg_file = "models/configs/Kinetics/TimeSformer_divST_8x32_224.yaml"
     config = load_config(args)
     config.DATA.PATH_TO_DATA_DIR = "/home/shared/UCF/splits_classification"
