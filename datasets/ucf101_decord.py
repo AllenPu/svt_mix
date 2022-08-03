@@ -347,7 +347,7 @@ if __name__ == '__main__':
     config = load_config(args)
     config.DATA.PATH_TO_DATA_DIR = "/home/shared/UCF/splits_classification"
     config.DATA.PATH_PREFIX = "/home/shared/UCF/videos"
-    dataset = UCF101(cfg=config, mode="train", num_retries=10)
+    dataset = UCF101_decord(cfg=config, mode="train", num_retries=10)
     dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=4)
     print(f"Loaded train dataset of length: {len(dataset)}")
     for idx, i in enumerate(dataloader):
@@ -355,7 +355,7 @@ if __name__ == '__main__':
         if idx > 2:
             break
 
-    test_dataset = UCF101(cfg=config, mode="val", num_retries=10)
+    test_dataset = UCF101_decord(cfg=config, mode="val", num_retries=10)
     test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=4)
     print(f"Loaded test dataset of length: {len(test_dataset)}")
     for idx, i in enumerate(test_dataloader):
