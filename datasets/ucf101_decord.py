@@ -79,7 +79,7 @@ class UCF101_decord(torch.utils.data.Dataset):
         #
         for i in range(1,2):       
             path_to_file = os.path.join(
-                    self.cfg.DATA.PATH_TO_DATA_DIR, "{}list0{}.txt".format(self.mode, i)
+                    self.cfg.DATA.PATH_TO_DATA_DIR, "ucf101_{}_list_{}.txt".format(self.mode, i)
                 )
             path_to_file_list.append(path_to_file)
 
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     from utils.parser import parse_args, load_config
     from tqdm import tqdm
     config = load_config(args)
-    config.DATA.PATH_TO_DATA_DIR = "/home/shared/UCF/classification_splits"
+    config.DATA.PATH_TO_DATA_DIR = "/home/shared/UCF/splits_classification"
     config.DATA.PATH_PREFIX = "/home/shared/UCF/videos"
     dataset = UCF101(cfg=config, mode="train", num_retries=10)
     dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=4)
