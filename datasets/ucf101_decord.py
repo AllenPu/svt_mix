@@ -79,7 +79,7 @@ class UCF101_decord(torch.utils.data.Dataset):
         #
         for i in range(1,2):       
             path_to_file = os.path.join(
-                    self.cfg.DATA.PATH_TO_DATA_DIR, "ucf101_{}_list_{}.txt".format(self.mode, i)
+                    self.cfg.DATA.PATH_TO_DATA_DIR, "ucf101_{}_split_{}_videos.txt".format(self.mode, i)
                 )
             path_to_file_list.append(path_to_file)
 
@@ -219,7 +219,9 @@ class UCF101_decord(torch.utils.data.Dataset):
                 #
                 assert start_idx < end_idx, print("the frame is too small!!!")
                 #
-                index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES).astype(np.int64)
+                index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)#
+                #
+                index = np.clip(index, 0, len(vr)).astype(np.int64)
                 #
                 all_index = list(index)
                 #
@@ -329,7 +331,7 @@ class UCF101_decord(torch.utils.data.Dataset):
         return len(self._path_to_videos)
         #
 
-    def convert_to_frame_by_index(vr, all_index):
+    def convert_to_frame_by_index(self, vr, all_index):
         vr.seek(0)
         frame = vr.get_batch(all_index).asnumpy()
         frame = [transforms.ToPILImage()(frame) for frame in frame]
