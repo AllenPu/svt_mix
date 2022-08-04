@@ -103,7 +103,7 @@ class HMDB51(torch.utils.data.Dataset):
         assert (len(self._path_to_videos) > 0), f"Failed to load UCF101 split {self._split_idx} from {path_to_file}"
         print(f"Constructing HMDB51 dataloader (size: {len(self._path_to_videos)}) from {path_to_file}")
 
-       def __getitem__(self, index):
+    def __getitem__(self, index):
         """
         Given the video index, return the list of frames, label, and video
         index if the video can be fetched and decoded successfully, otherwise
