@@ -537,8 +537,8 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 ###else:
                 ###    teacher_output = teacher(images[:2])  # only the 2 global views pass through the teacher
                 ###loss = dino_loss(student_output, teacher_output, epoch)
-                loss = args.mix_up_ratio*[dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
-                                + dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch)] \
+                loss = args.mix_up_ratio*dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
+                                + args.mix_up_ratio*dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch) \
                                 + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True, update_center=True)
 
         if not math.isfinite(loss.item()):
