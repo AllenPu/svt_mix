@@ -30,6 +30,7 @@ import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torchvision import models as torchvision_models
+from datasets.ucf101_decord import UCF101_decord
 
 from utils import utils
 import vision_transformer as vits
@@ -148,6 +149,9 @@ def get_args_parser():
     parser.add_argument('--temperature', default=0.07, type=float,
                         help='Temperature used in the voting coefficient')
 
+    # param: mixup
+    parser.add_argument('--mix_up_ratio', default=0.4, type=float, help='Natio for mix up')
+
     return parser
 
 
@@ -165,7 +169,7 @@ def train_svt(args):
     config.DATA.PATH_TO_DATA_DIR = args.data_path
     # config.DATA.PATH_PREFIX = os.path.dirname(args.data_path)
     # dataset = Kinetics(cfg=config, mode="train", num_retries=10, get_flow=config.DATA.USE_FLOW)
-    dataset = UCF101(cfg=config, mode="train", num_retries=10)
+    dataset = UCF101_decord(cfg=config, mode="train", num_retries=10)
     sampler = torch.utils.data.DistributedSampler(dataset, shuffle=True)
     data_loader = torch.utils.data.DataLoader(
         dataset,
@@ -515,34 +519,26 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 assert type(images) == list
                 #
                 # the first global crop image
-                global1 = images[0]
-                # we want to mix global 1
-                # mix in global1 only
-                # assume we have the B in B1+B2
-                # X1 : B1 <- B2
-                # X2 : B1 -> B2
+                global_video = torch.cat([images[0], images[1]])
                 bsz = images[0].shape[0]
-                x1, lam1, new_lams1 = data_mixup(global1, None)
-                global1_flip = x1.flip(0).clone()
-                #x2, lam2, new_lams2 = data_mixup(global1_flip, lam1)
-                # bsz + bsz <- length
-                #images_student = [torch.cat([x1, x2], dim = 0)]
-                #images_teacher = [torch.cat([global1, global1_flip], dim=0)]
-                images_student = [x1]
-                images_teacher = [global1_flip]
-
+                mix_video, lam1, new_lams1 = data_mixup(global_video, args.mix_up_ratio)
+                #mix_video_flip = mix_video.flip(0).clone()
+                #
+                mix_student = [mix_video]
+                mix_teacher = [global_video]
+                # traditional dino
                 student_output = student(images[2:])
-                teacher_output = teacher(images[:2])
+                teacher_output = teacher([images[0], rand_conv(images[1])])
                 # mixed output
-                student_output_mix = student(images_student)
-                teacher_output_mix = teacher(images_teacher)
+                student_output_mix = student(mix_student)
+                teacher_output_mix = teacher(mix_teacher)
                 ###if rand_conv is not None:
                 ###    teacher_output = teacher([images[0], rand_conv(images[1])])
                 ###else:
                 ###    teacher_output = teacher(images[:2])  # only the 2 global views pass through the teacher
                 ###loss = dino_loss(student_output, teacher_output, epoch)
-                loss = dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
-                                + dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch) \
+                loss = args.mix_up_ratio*[dino_loss(student_output_mix[:bsz], teacher_output_mix[:bsz], epoch) \
+                                + dino_loss(student_output_mix[bsz:], teacher_output_mix[bsz:], epoch)] \
                                 + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True, update_center=True)
 
         if not math.isfinite(loss.item()):
