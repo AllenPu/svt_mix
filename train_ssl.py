@@ -528,7 +528,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 mix_teacher = [global_video]
                 # traditional dino
                 student_output = student(images[2:])
-                teacher_output = teacher([images[0], rand_conv(images[1])])
+                teacher_output = teacher([images[0],images[1]])
                 # mixed output
                 student_output_mix = student(mix_student)
                 teacher_output_mix = teacher(mix_teacher)
