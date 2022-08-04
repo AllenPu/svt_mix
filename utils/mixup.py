@@ -27,7 +27,7 @@ def rand_bbox(img_shape, lam, margin=0., count=None):
     return yl, yh, xl, xh
 
 
-def data_mixup(x, lam):
+def data_mixup(x, mix_up_ratio):
     #
     # x in shape of : [B, C, T, H, W]
     # lam is the mixup ratio
@@ -36,10 +36,10 @@ def data_mixup(x, lam):
     assert len(x.shape) == 5
     temporal_len = x.shape[2]
     #
-    if lam is None:
+    if True:
         #lam = np.random.beta(1., 1., size=[x.shape[0],1,1,1]).astype(np.float32)
         lam = np.ones((x.shape[0],1,1,1)).astype(np.float32)
-        lam = lam * 0.4 # can tune
+        lam = lam * mix_up_ratio # can tune
         lam = np.clip(lam, 0, 0.5)
         lam = torch.from_numpy(lam).cuda()
     new_lams = lam * 0.8 + 0.1
