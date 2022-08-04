@@ -37,7 +37,10 @@ def data_mixup(x, lam):
     temporal_len = x.shape[2]
     #
     if lam is None:
-        lam = np.random.beta(1., 1., size=[x.shape[0],1,1,1]).astype(np.float32)
+        #lam = np.random.beta(1., 1., size=[x.shape[0],1,1,1]).astype(np.float32)
+        lam = np.ones((x.shape[0],1,1,1)).astype(np.float32)
+        lam = lam * 0.4 # can tune
+        lam = np.clip(lam, 0, 0.5)
         lam = torch.from_numpy(lam).cuda()
     new_lams = lam * 0.8 + 0.1
     x_flip = x.flip(0).clone()
