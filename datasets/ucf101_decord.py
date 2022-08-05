@@ -219,11 +219,11 @@ class UCF101_decord(torch.utils.data.Dataset):
                 #
                 assert start_idx < end_idx, print("the frame is too small!!!")
                 #
-                index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)#
+                index_ = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)#
                 #
-                index = np.clip(index, 0, len(vr)).astype(np.int64)
+                index_ = np.clip(index_, 0, len(vr)).astype(np.int64)
                 #
-                all_index = list(index)
+                all_index = list(index_)
                 #
                 frame = self.convert_to_frame_by_index(vr, all_index)
                 # in the val or test
@@ -237,11 +237,11 @@ class UCF101_decord(torch.utils.data.Dataset):
                 # set sperartion [j, j+ len]
                 end_idx = start_idx + clip_size
                 #
-                index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES).astype(np.int64)
+                index_ = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES).astype(np.int64)
                 #
-                index = np.clip(index, 0, len(vr)).astype(np.int64)
+                index_ = np.clip(index_, 0, len(vr)-1).astype(np.int64)
                 #
-                all_index = list(index)
+                all_index = list(index_)
                 #
                 frame = self.convert_to_frame_by_index(vr, all_index)
                 # in the val or test
@@ -258,11 +258,11 @@ class UCF101_decord(torch.utils.data.Dataset):
             start_idx = random.uniform( clip_id*clip_size, (clip_id+1)*clip_size)
             end_idx = start_idx + clip_size - 1
             #
-            index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)
+            index_ = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)
             #
-            index = np.clip(index, 0, len(vr)).astype(np.int64)
+            index_ = np.clip(index_, 0, len(vr)-1).astype(np.int64)
             #
-            all_index = list(index)
+            all_index = list(index_)
             #
             frames = self.convert_to_frame_by_index(vr, all_index)
 
