@@ -16,7 +16,7 @@ from torchvision import transforms
 from datasets.decoder import temporal_sampling
 
 
-class HMDB51(torch.utils.data.Dataset):
+class HMDB51_decord(torch.utils.data.Dataset):
     """
     UCF101 video loader. Construct the UCF101 video loader, then sample
     clips from the videos. For training and validation, a single clip is
@@ -244,11 +244,11 @@ class HMDB51(torch.utils.data.Dataset):
             start_idx = random.uniform( clip_id*clip_size, (clip_id+1)*clip_size)
             end_idx = start_idx + clip_size - 1
             #
-            index = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)
+            index_ = np.linspace(start_idx, end_idx, self.cfg.DATA.NUM_FRAMES)
             #
-            index = np.clip(index, 0, len(vr)-1).astype(np.int64)
+            index_ = np.clip(index_, 0, len(vr)-1).astype(np.int64)
             #
-            all_index = list(index)
+            all_index = list(index_)
             #
             frames = self.convert_to_frame_by_index(vr, all_index)
 
