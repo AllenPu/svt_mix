@@ -520,12 +520,16 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 #
                 # the first global crop image
                 global_video = torch.cat([images[0], images[1]])
+                #
+                global_video_flip = global_video.flip(0).clone()
                 bsz = images[0].shape[0]
                 mix_video, lam1, new_lams1 = data_mixup(global_video, args.mix_up_ratio)
                 #mix_video_flip = mix_video.flip(0).clone()
                 #
                 mix_student = [mix_video]
                 mix_teacher = [global_video]
+                #
+                mix_teacher_flip = [global_video_flip]
                 # traditional dino
                 student_output = student(images[2:])
                 teacher_output = teacher([images[0],images[1]])
@@ -537,7 +541,10 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 ###else:
                 ###    teacher_output = teacher(images[:2])  # only the 2 global views pass through the teacher
                 ###loss = dino_loss(student_output, teacher_output, epoch)
-                loss = args.mix_up_ratio*dino_loss(student_output_mix, teacher_output_mix, epoch) \
+                #
+                lam = new_lams1[0].item()
+                loss = (1-lam)*dino_loss(student_output_mix, teacher_output_mix, epoch) \
+                                + lam*dino_loss(student_output_mix, teacher_output_mix, epoch) \
                                 + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True, update_center=True)
 
         if not math.isfinite(loss.item()):
