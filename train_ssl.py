@@ -529,13 +529,14 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 mix_student = [mix_video]
                 mix_teacher = [global_video]
                 #
-                mix_teacher_flip = [global_video_flip]
+                #mix_teacher_flip = [global_video_flip]
                 # traditional dino
                 student_output = student(images[2:])
                 teacher_output = teacher([images[0],images[1]])
                 # mixed output
                 student_output_mix = student(mix_student)
                 teacher_output_mix = teacher(mix_teacher)
+                teacher_output_mix_flip = teacher_output_mix.flip(0).clone()
                 ###if rand_conv is not None:
                 ###    teacher_output = teacher([images[0], rand_conv(images[1])])
                 ###else:
@@ -544,7 +545,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 #
                 lam = new_lams1[0].item()
                 loss = (1-lam)*dino_loss(student_output_mix, teacher_output_mix, epoch) \
-                                + lam*dino_loss(student_output_mix, teacher_output_mix, epoch) \
+                                + lam*dino_loss(student_output_mix, teacher_output_mix_flip, epoch) \
                                 + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True, update_center=True)
 
         if not math.isfinite(loss.item()):
