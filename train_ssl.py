@@ -524,6 +524,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 global_video_flip = global_video.flip(0).clone()
                 bsz = images[0].shape[0]
                 mix_video, lam1, new_lams1 = data_mixup(global_video, args.mix_up_ratio)
+                #
                 #mix_video_flip = mix_video.flip(0).clone()
                 #
                 mix_student = [mix_video]
@@ -537,6 +538,11 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 student_output_mix = student(mix_student)
                 teacher_output_mix = teacher(mix_teacher)
                 teacher_output_mix_flip = teacher_output_mix.flip(0).clone()
+                #
+                mixup_gt = (1-lam)*teacher_output_mix + lam*teacher_output_mix_flip
+                #
+                # dino_mixup = dino_loss(student_output_mix, mixup_gt, epoch)
+                #
                 ###if rand_conv is not None:
                 ###    teacher_output = teacher([images[0], rand_conv(images[1])])
                 ###else:
