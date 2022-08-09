@@ -360,6 +360,17 @@ def train_svt(args):
     # ============ preparing loss ... ============
     dino_loss = DINOLoss(
         args.out_dim,
+        args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
+        args.warmup_teacher_temp,
+        args.teacher_temp,
+        args.warmup_teacher_temp_epochs,
+        args.epochs,
+        global_crops=2,
+        two_token=config.MODEL.TWO_TOKEN
+    ).cuda()
+
+    dino_loss_mix = DINOLoss(
+        args.out_dim,
         #args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
         1, # ncrops
         args.warmup_teacher_temp,
@@ -433,7 +444,7 @@ def train_svt(args):
         data_loader.sampler.set_epoch(epoch)
 
         # ============ training one epoch of DINO ... ============
-        train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,
+        train_stats = train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, dino_loss_mix,
                                       data_loader, optimizer, lr_schedule, wd_schedule, momentum_schedule,
                                       epoch, fp16_scaler, args, cfg=config,
                                       motion_loss=dino_flow_loss, cross_loss=dino_cross_loss,
@@ -469,7 +480,7 @@ def train_svt(args):
     print('Training time {}'.format(total_time_str))
 
 
-def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loader,
+def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, dino_loss_mix, data_loader,
                     optimizer, lr_schedule, wd_schedule, momentum_schedule, epoch,
                     fp16_scaler, args, cfg=None, motion_teacher=None, motion_student=None,
                     motion_loss=None, cross_loss=None, motion_teacher_without_ddp=None, rand_conv=None):
@@ -541,7 +552,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 #
                 mixup_gt = (1-lam)*teacher_output_mix + lam*teacher_output_mix_flip
                 #
-                # dino_mixup = dino_loss(student_output_mix, mixup_gt, epoch)
+                # dino_mixup = dino_loss_mix(student_output_mix, mixup_gt, epoch)
                 #
                 ###if rand_conv is not None:
                 ###    teacher_output = teacher([images[0], rand_conv(images[1])])
@@ -550,8 +561,8 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
                 ###loss = dino_loss(student_output, teacher_output, epoch)
                 #
                 lam = new_lams1[0].item()
-                loss = (1-lam)*dino_loss(student_output_mix, teacher_output_mix, epoch) \
-                                + lam*dino_loss(student_output_mix, teacher_output_mix_flip, epoch) \
+                loss = (1-lam)*dino_loss_mix(student_output_mix, teacher_output_mix, epoch) \
+                                + lam*dino_loss_mix(student_output_mix, teacher_output_mix_flip, epoch) \
                                 + dino_loss(student_output, teacher_output, epoch, n_crops = 8, global_crops =2, reset= True, update_center=True)
 
         if not math.isfinite(loss.item()):
